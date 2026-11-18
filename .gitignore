@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+.claude/settings.local.json
+
+# Model weights are shared via the checkpoint folder.
+part1/out*/
+part1/out_debug*.txt
+part2/checkpoints/
