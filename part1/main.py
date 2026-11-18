@@ -89,8 +89,8 @@ def do_eval(eval_dataloader, output_dir, out_file):
 def create_augmented_dataloader(args, dataset):
     train = dataset["train"]
     subset = train.shuffle(seed=42).select(range(5000))
-    augmented = datasets.concatenate_datasets([train, subset.map(custom_transform)])
-    encoded = augmented.map(tokenize_function, batched=True, remove_columns=["text"])
+    augmented = datasets.concatenate_datasets([train, subset.map(custom_transform, load_from_cache_file=False)])
+    encoded = augmented.map(tokenize_function, batched=True, remove_columns=["text"], load_from_cache_file=False)
     encoded = encoded.rename_column("label", "labels").with_format("torch")
     train_dataloader = DataLoader(encoded, shuffle=True, batch_size=args.batch_size)
     return train_dataloader
