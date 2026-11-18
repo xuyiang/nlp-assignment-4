@@ -45,11 +45,11 @@ The other command starts from randomly initialized weights with the same config.
 Each run selects a checkpoint by development loss, compares greedy and beam-three
 decoding on the development set, and generates the test outputs once with the
 higher development record F1. The checkpoint includes the tokenizer, generation
-configuration, and the reversible SQL merge rules learned on training targets.
+configuration, and its training-only output vocabulary. The pretrained model learns reversible SQL merges. The scratch model predicts a training-derived query template followed by literal or city-copy tokens.
 
 ```bash
 python train_t5.py --finetune --max_n_epochs 24 --patience_epochs 5 --learning_rate 0.0005 --batch_size 24 --compare_beams 3
-python train_t5.py --max_n_epochs 55 --patience_epochs 8 --learning_rate 0.001 --batch_size 24 --compare_beams 3
+python train_t5.py --target_format templates --max_n_epochs 45 --patience_epochs 8 --learning_rate 0.0003 --batch_size 24 --compare_beams 3
 python analyze.py --stats --checkpoint checkpoints/ft_experiments/experiment/best
 python analyze.py
 python analyze.py --pred_sql results/t5_ft_experiment_ec_dev.sql --pred_records records/t5_ft_experiment_ec_dev.pkl

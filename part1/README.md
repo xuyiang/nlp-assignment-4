@@ -21,18 +21,20 @@ python3
 
 ## Assignment runs
 
-Run these commands from this directory. Each text output alternates a prediction
-and its reference label, in dataset order. The debug run uses a separate output
-directory. The full experiments use 320 tokens including special tokens and
-keep both ends of longer reviews.
+Run from this directory with the starter defaults (batch size 8, 3 epochs, learning
+rate 5e-5, fixed right padding and truncation to 512, FP32). Debug output goes to
+a separate directory. Each output alternates a predicted class and its reference label.
 
 ```bash
-python main.py --train --eval --debug_train --max_length 320 --learning_rate 2e-5
-python main.py --debug_transformation
-python main.py --train --eval --eval_transformed --max_length 320 --learning_rate 2e-5
-python main.py --train_augmented --eval --eval_transformed --max_length 320 --learning_rate 2e-5
+python main.py --train --eval --debug_train
+python main.py --eval_transformed --debug_transformation
+python main.py --train --eval --eval_transformed
+python main.py --train_augmented --eval --eval_transformed
+python analyze_lengths.py
 ```
 
-Set `A4_BERT_MODEL` to a local bert-base-cased checkpoint and `A4_IMDB_DIR`
-to a directory with the official train.parquet and test.parquet splits to run
-from local copies. Without these options the loader uses Hugging Face.
+The length analysis reports results separately on reviews for which both versions
+fit within the 510 content-token budget. For offline use, A4_BERT_MODEL can point
+to an official local bert-base-cased checkpoint, A4_IMDB_DIR to the official
+train.parquet and test.parquet, and A4_ACCURACY_METRIC to a local copy of Hugging
+Face Evaluate's accuracy metric. Otherwise the standard Hugging Face loaders apply.

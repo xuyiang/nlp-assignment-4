@@ -26,6 +26,7 @@ def get_args():
     parser.add_argument("--experiment_name", default="experiment")
     parser.add_argument("--batch_size", type=int, default=24)
     parser.add_argument("--test_batch_size", type=int, default=32)
+    parser.add_argument("--target_format", choices=["merges", "templates"], default="merges")
     parser.add_argument("--merges", type=int, choices=range(101), default=100, metavar="0..100")
     parser.add_argument("--num_beams", type=int, help="Default: checkpoint setting, or greedy decoding")
     parser.add_argument("--compare_beams", type=int, help="Also score this beam width on dev; choose by record F1")
@@ -82,10 +83,15 @@ def generate_queries(args, model, loader):
     queries = []
     for batch in tqdm(loader, desc="Generate", mininterval=30):
         inputs, mask, start = (batch[i].to(DEVICE) for i in (0, 1, -1))
+        questions = loader.dataset.questions[len(queries):len(queries)+len(inputs)]
+        generation_args = {}
+        if hasattr(codec, "allowed_tokens"):
+            choices = [codec.allowed_tokens(q) for q in questions]
+            generation_args["prefix_allowed_tokens_fn"] = lambda i, prefix: choices[i](prefix.tolist())
         with mixed_precision():
             ids = model.generate(input_ids=inputs, attention_mask=mask, decoder_input_ids=start,
-                                 max_new_tokens=args.max_new_tokens, num_beams=args.num_beams, do_sample=False)
-        queries.extend(codec.decode(row) for row in ids.tolist())
+                                 max_new_tokens=args.max_new_tokens, num_beams=args.num_beams, do_sample=False, **generation_args)
+        queries.extend(codec.decode(row, q) for row, q in zip(ids.tolist(), questions))
     return queries
 
 
@@ -124,7 +130,7 @@ def main():
     set_random_seeds(42)
     tracker = setup_wandb(args) if args.use_wandb else None
     checkpoint = checkpoint_dir(args) / "best"
-    codec = get_codec("data", args.merges, str(checkpoint) if args.inference_only else None)
+    codec = get_codec("data", args.merges, str(checkpoint) if args.inference_only else None, args.target_format)
     train_loader, dev_loader, test_loader = load_t5_data(args.batch_size, args.test_batch_size, codec)
     if not args.inference_only:
         model = initialize_model(args)

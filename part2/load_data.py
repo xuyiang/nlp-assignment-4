@@ -55,14 +55,14 @@ class SQLCodec:
             rows = [row.replace("".join(pair), chr(sentinel)) for row in rows]
         return cls(tokenizer, rules)
 
-    def encode(self, queries):
+    def encode(self, queries, questions=None):
         texts = ["".join(map(chr, row)) for row in self.base_ids(self.tokenizer, queries)]
         for left, right, sentinel in self.rules:
             pair = chr(left) + chr(right)
             texts = [row.replace(pair, chr(sentinel)) for row in texts]
         return [[*map(ord, row), self.tokenizer.eos_token_id] for row in texts]
 
-    def decode(self, row):
+    def decode(self, row, question=None):
         ids = []
         for token in row:
             if token == self.tokenizer.eos_token_id:
@@ -76,12 +76,18 @@ class SQLCodec:
 
 
 @lru_cache(maxsize=2)
-def get_codec(data_folder="data", merges=100, checkpoint=None):
+def get_codec(data_folder="data", merges=100, checkpoint=None, target_format="merges"):
     model_name = checkpoint or os.getenv("A4_T5_MODEL", "google-t5/t5-small")
     tokenizer = T5TokenizerFast.from_pretrained(model_name)
     if checkpoint:
         rules = json.loads((Path(checkpoint) / "sql_codec.json").read_text(encoding="utf-8"))
+        if isinstance(rules, dict):
+            from template_codec import TemplateCodec
+            return TemplateCodec(tokenizer, rules)
         return SQLCodec(tokenizer, rules)
+    if target_format == "templates":
+        from template_codec import TemplateCodec
+        return TemplateCodec.fit(tokenizer, load_lines(Path(data_folder) / "train.sql"))
     return SQLCodec.fit(tokenizer, load_lines(Path(data_folder) / "train.sql"), merges)
 
 
@@ -92,14 +98,16 @@ class T5Dataset(Dataset):
 
     def process_data(self, data_folder, split, tokenizer):
         folder = Path(data_folder)
-        prompts = [PROMPT + text for text in load_lines(folder / f"{split}.nl")]
+        self.questions = load_lines(folder / f"{split}.nl")
+        make_prompt = getattr(self.codec, "input_text", lambda text: PROMPT + text)
+        prompts = [make_prompt(text) for text in self.questions]
         inputs = tokenizer(prompts, verbose=False).input_ids
         if split == "test":
             return [(torch.tensor(ids),) for ids in inputs]
         queries = load_lines(folder / f"{split}.sql")
         if len(inputs) != len(queries):
             raise ValueError(f"Unpaired {split} examples")
-        return [(torch.tensor(x), torch.tensor(y)) for x, y in zip(inputs, self.codec.encode(queries))]
+        return [(torch.tensor(x), torch.tensor(y)) for x, y in zip(inputs, self.codec.encode(queries, self.questions))]
 
     def __len__(self):
         return len(self.examples)

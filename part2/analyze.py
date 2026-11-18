@@ -15,11 +15,13 @@ def data_statistics(checkpoint):
         questions = load_lines(Path("data") / f"{split}.nl")
         queries = load_lines(Path("data") / f"{split}.sql")
         encode = lambda strings: codec.tokenizer(strings, verbose=False).input_ids
-        after_sql = codec.encode(queries)
-        assert all(codec.decode(ids) == sql for ids, sql in zip(after_sql, queries))
+        after_sql = codec.encode(queries, questions)
+        exact = sum(codec.decode(ids, q) == sql for ids, q, sql in zip(after_sql, questions, queries))
+        print(f"Target round trips: {exact}/{len(questions)}")
+        make_prompt = getattr(codec, "input_text", lambda text: PROMPT + text)
         print(f"{split} ({len(questions)} examples)")
         for label, rows in (("raw NL", encode(questions)), ("raw SQL", encode(queries)),
-                            ("processed NL", encode([PROMPT + s for s in questions])),
+                            ("processed NL", encode([make_prompt(s) for s in questions])),
                             ("processed SQL", after_sql)):
             print(f"  {label:14s} mean tokens {mean(map(len, rows)):.2f}, "
                   f"observed vocabulary {len({token for row in rows for token in row})}")
